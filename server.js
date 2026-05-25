@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   addExamRecord,
   addMaterial,
@@ -15,7 +16,7 @@ import {
 import { loadState, saveState, todayIso } from './src/storage/jsonStore.js';
 
 const DEFAULT_PORT = Number(process.env.PORT) || 4173;
-const ROOT_DIR = resolve(new URL('.', import.meta.url).pathname);
+const ROOT_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const PUBLIC_DIR = join(ROOT_DIR, 'public');
 const DEFAULT_DATA_FILE = join(ROOT_DIR, 'data', 'app-data.json');
 

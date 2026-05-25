@@ -25,3 +25,22 @@ test('GET /api/dashboard creates local state and returns today tasks', async () 
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test('GET / serves the RPG study planner shell', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'yizaostudy-'));
+  const dataFile = join(dataDir, 'app-data.json');
+  const server = createServer({ dataFile, openBrowser: false });
+
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/`);
+    const html = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(html, /造价勇者/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

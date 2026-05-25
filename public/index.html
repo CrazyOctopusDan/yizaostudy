@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>造价勇者</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="avatar" aria-hidden="true">
+            <span class="avatar-hat"></span>
+            <span class="avatar-face"></span>
+          </div>
+          <div>
+            <h1>造价勇者</h1>
+            <p>一级造价师备考</p>
+          </div>
+        </div>
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-item active" data-view="today">今日学习</button>
+          <button class="nav-item" data-view="plan">学习计划</button>
+          <button class="nav-item" data-view="practice">题目练习</button>
+          <button class="nav-item" data-view="materials">资料库</button>
+          <button class="nav-item" data-view="review">复盘统计</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">Zhejiang Jiaxing · Civil Construction</p>
+            <h2>今日冒险</h2>
+            <p id="stageLine" class="muted">读取中...</p>
+          </div>
+          <div class="countdown">
+            <span id="daysLeft">--</span>
+            <small>days to boss</small>
+          </div>
+        </section>
+
+        <section id="today" class="view active"></section>
+        <section id="plan" class="view"></section>
+        <section id="practice" class="view"></section>
+        <section id="materials" class="view"></section>
+        <section id="review" class="view"></section>
+      </main>
+    </div>
+
+    <template id="emptyTemplate">
+      <div class="empty">暂无记录</div>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
