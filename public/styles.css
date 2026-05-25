@@ -261,6 +261,11 @@ button {
   opacity: 0.68;
 }
 
+.task.postponed {
+  background: #f5efe2;
+  opacity: 0.82;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -311,6 +316,14 @@ button {
   display: inline-flex;
   justify-content: center;
   text-decoration: none;
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
 }
 
 .primary-btn:disabled,
@@ -646,6 +659,72 @@ button {
   padding: 10px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(45, 29, 16, 0.46);
+  padding: 18px;
+}
+
+.self-check-modal {
+  display: grid;
+  gap: 12px;
+  width: min(720px, 100%);
+  max-height: min(760px, 92vh);
+  overflow: auto;
+  border: 3px solid var(--wood);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 24px 70px rgba(45, 29, 16, 0.35);
+  padding: 18px;
+}
+
+.self-check-head,
+.self-check-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.self-check-head h3 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+
+.self-check-target,
+.self-check-focus {
+  border: 2px solid #e0bb78;
+  border-radius: 8px;
+  background: #fffdf5;
+  padding: 10px;
+}
+
+.self-check-focus {
+  display: grid;
+  gap: 4px;
+}
+
+.self-check-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.self-check-list li {
+  padding-left: 4px;
+}
+
+.self-check-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .empty {
   padding: 16px;
   border: 2px dashed #d2a15f;
@@ -684,5 +763,15 @@ button {
   .tree-chapter summary {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .self-check-head,
+  .self-check-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .icon-btn {
+    align-self: flex-end;
   }
 }

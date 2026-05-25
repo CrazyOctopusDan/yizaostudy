@@ -102,3 +102,31 @@ test('POST /api/tasks/:id/complete records knowledge mastery from request body',
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+test('POST /api/tasks/:id/postpone postpones today task without completing knowledge', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'yizaostudy-'));
+  const dataFile = join(dataDir, 'app-data.json');
+  const server = createServer({ dataFile, openBrowser: false });
+
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const dashboardResponse = await fetch(`http://127.0.0.1:${port}/api/dashboard?today=2026-05-25`);
+    const dashboard = await dashboardResponse.json();
+    const knowledgeTask = dashboard.todayTasks.find((task) => task.sourceType === 'knowledge');
+    const postponeResponse = await fetch(`http://127.0.0.1:${port}/api/tasks/${encodeURIComponent(knowledgeTask.id)}/postpone?today=2026-05-25`, {
+      method: 'POST',
+    });
+    const postponed = await postponeResponse.json();
+    const task = postponed.state.tasks.find((item) => item.id === knowledgeTask.id);
+
+    assert.equal(postponeResponse.status, 200);
+    assert.equal(task.status, 'postponed');
+    assert.equal(postponed.state.knowledgeStatus[knowledgeTask.knowledgePointId].status, 'not-started');
+    assert.equal(postponed.character.totalExp, 0);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

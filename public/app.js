@@ -1,6 +1,7 @@
 const state = {
   dashboard: null,
   currentView: 'today',
+  pendingSelfCheck: null,
 };
 
 const priorityLabel = {
@@ -25,7 +26,13 @@ const masteryActionLabel = {
   learned: '已学',
   fuzzy: '模糊',
   mastered: '掌握',
-  'not-started': '取消',
+};
+
+const subjectSelfCheckFocus = {
+  management: '制度、流程、合同条款、项目管理逻辑和全过程造价管理关系',
+  pricing: '费用构成、计价依据、工程量清单、合同价款调整和结算路径',
+  'civil-measurement': '工程构造、材料特性、施工技术、工程量计算规则和清单口径',
+  'case-analysis': '解题步骤、数据提取、公式选择、书面表达和时间控制',
 };
 
 const statusLabel = {
@@ -91,6 +98,7 @@ function render() {
   renderPractice();
   renderMaterials();
   renderReview();
+  renderSelfCheckModal();
 }
 
 function renderToday() {
@@ -150,12 +158,25 @@ function renderToday() {
     });
   });
 
-  document.querySelectorAll('[data-task-knowledge-mastery]').forEach((button) => {
+  document.querySelectorAll('[data-complete-knowledge-task]').forEach((button) => {
     button.addEventListener('click', async () => {
-      state.dashboard = await api(`/api/knowledge-points/${encodeURIComponent(button.dataset.taskKnowledgeMastery)}/complete`, {
+      state.dashboard = await api(`/api/tasks/${encodeURIComponent(button.dataset.completeKnowledgeTask)}/complete`, {
         method: 'POST',
         body: JSON.stringify({ masteryStatus: button.dataset.masteryStatus }),
       });
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-open-self-check]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openSelfCheck(button.dataset.openSelfCheck, button.dataset.masteryStatus, button.dataset.selfCheckTask || null);
+    });
+  });
+
+  document.querySelectorAll('[data-postpone-task]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.dashboard = await api(`/api/tasks/${encodeURIComponent(button.dataset.postponeTask)}/postpone`, { method: 'POST' });
       render();
     });
   });
@@ -163,19 +184,21 @@ function renderToday() {
 
 function renderTask(task) {
   const done = task.status === 'completed';
+  const postponed = task.status === 'postponed';
   const point = task.knowledgePointId ? state.dashboard.knowledgePoints.find((item) => item.id === task.knowledgePointId) : null;
   const sourceLink = task.sourceUrl ? `<a href="${task.sourceUrl}" target="_blank" rel="noreferrer">大纲来源</a>` : '';
   const actionHtml = task.sourceType === 'knowledge'
     ? `
       <div class="mastery-actions">
-        ${Object.entries(masteryActionLabel).map(([status, label]) => `
-          <button class="secondary-btn ${status === 'not-started' ? 'danger-btn' : ''}" data-task-knowledge-mastery="${task.knowledgePointId}" data-mastery-status="${status}" ${!done && status === 'not-started' ? 'disabled' : ''}>${done && task.masteryStatus === status ? `已标记：${label}` : label}</button>
-        `).join('')}
+        <button class="secondary-btn" data-complete-knowledge-task="${task.id}" data-mastery-status="learned" ${done || postponed ? 'disabled' : ''}>${done && task.masteryStatus === 'learned' ? '已标记：已学' : '已学'}</button>
+        <button class="secondary-btn" data-open-self-check="${task.knowledgePointId}" data-self-check-task="${task.id}" data-mastery-status="fuzzy" ${done || postponed ? 'disabled' : ''}>${done && task.masteryStatus === 'fuzzy' ? '已标记：模糊' : '模糊'}</button>
+        <button class="secondary-btn" data-open-self-check="${task.knowledgePointId}" data-self-check-task="${task.id}" data-mastery-status="mastered" ${done || postponed ? 'disabled' : ''}>${done && task.masteryStatus === 'mastered' ? '已标记：掌握' : '掌握'}</button>
+        <button class="secondary-btn" data-postpone-task="${task.id}" ${done || postponed ? 'disabled' : ''}>${postponed ? '已推迟' : '推迟'}</button>
       </div>
     `
     : `<button class="primary-btn" data-complete-task="${task.id}" ${done ? 'disabled' : ''}>${done ? '已完成' : '完成'}</button>`;
   return `
-    <article class="task ${done ? 'completed' : ''}">
+    <article class="task ${done ? 'completed' : ''} ${postponed ? 'postponed' : ''}">
       <div class="task-top">
         <div>
           <span class="badge ${task.priority}">${priorityLabel[task.priority]}</span>
@@ -260,6 +283,12 @@ function renderPlan() {
       render();
     });
   });
+
+  document.querySelectorAll('[data-tree-self-check]').forEach((button) => {
+    button.addEventListener('click', () => {
+      openSelfCheck(button.dataset.treeSelfCheck, button.dataset.masteryStatus);
+    });
+  });
 }
 
 function renderTextbookTree() {
@@ -322,13 +351,109 @@ function renderTreeItem(subjectId, item, itemIndex) {
         </div>
       </div>
       <div class="mastery-actions">
-        ${Object.entries(masteryLabel).map(([masteryStatus, label]) => `
-          <button class="secondary-btn" data-tree-mastery="${item.id}" data-mastery-status="${masteryStatus}" ${status === masteryStatus ? 'disabled' : ''}>${label}</button>
-        `).join('')}
-        <button class="secondary-btn danger-btn" data-tree-mastery="${item.id}" data-mastery-status="not-started" ${status === 'not-started' ? 'disabled' : ''}>取消</button>
+        <button class="secondary-btn" data-tree-mastery="${item.id}" data-mastery-status="learned" ${status === 'learned' ? 'disabled' : ''}>已学</button>
+        <button class="secondary-btn" data-tree-self-check="${item.id}" data-mastery-status="fuzzy" ${status === 'fuzzy' ? 'disabled' : ''}>模糊</button>
+        <button class="secondary-btn" data-tree-self-check="${item.id}" data-mastery-status="mastered" ${status === 'mastered' ? 'disabled' : ''}>掌握</button>
+        <button class="secondary-btn danger-btn" data-tree-mastery="${item.id}" data-mastery-status="not-started" ${status === 'not-started' ? 'disabled' : ''}>撤销标记</button>
       </div>
     </article>
   `;
+}
+
+function openSelfCheck(knowledgePointId, masteryStatus, taskId = null) {
+  const point = state.dashboard.knowledgePoints.find((item) => item.id === knowledgePointId);
+  if (!point) return;
+  state.pendingSelfCheck = { knowledgePointId, masteryStatus, taskId };
+  renderSelfCheckModal();
+}
+
+function closeSelfCheck() {
+  state.pendingSelfCheck = null;
+  renderSelfCheckModal();
+}
+
+async function confirmSelfCheck() {
+  if (!state.pendingSelfCheck) return;
+  const { knowledgePointId, masteryStatus, taskId } = state.pendingSelfCheck;
+  const path = taskId
+    ? `/api/tasks/${encodeURIComponent(taskId)}/complete`
+    : `/api/knowledge-points/${encodeURIComponent(knowledgePointId)}/complete`;
+  state.dashboard = await api(path, {
+    method: 'POST',
+    body: JSON.stringify({ masteryStatus }),
+  });
+  state.pendingSelfCheck = null;
+  render();
+}
+
+function renderSelfCheckModal() {
+  const existing = document.querySelector('#selfCheckModal');
+  if (existing) existing.remove();
+  if (!state.pendingSelfCheck) return;
+
+  const point = state.dashboard.knowledgePoints.find((item) => item.id === state.pendingSelfCheck.knowledgePointId);
+  if (!point) return;
+  const content = buildSelfCheckContent(point, state.pendingSelfCheck.masteryStatus);
+  const modal = document.createElement('div');
+  modal.id = 'selfCheckModal';
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <section class="self-check-modal" role="dialog" aria-modal="true" aria-labelledby="selfCheckTitle">
+      <div class="self-check-head">
+        <div>
+          <p class="eyebrow">${subjectName(point.subjectId)} · ${point.chapter}</p>
+          <h3 id="selfCheckTitle">${content.title}</h3>
+        </div>
+        <button class="secondary-btn icon-btn" data-close-self-check aria-label="关闭">×</button>
+      </div>
+      <p class="self-check-target">${point.section} / ${point.title}</p>
+      <p>${content.intro}</p>
+      <div class="self-check-focus">
+        <strong>本科学习焦点</strong>
+        <span>${subjectSelfCheckFocus[point.subjectId] || '定义、规则、适用条件和题目迁移'}</span>
+      </div>
+      <ol class="self-check-list">
+        ${content.prompts.map((prompt) => `<li>${prompt}</li>`).join('')}
+      </ol>
+      <div class="self-check-actions">
+        <button class="secondary-btn" data-close-self-check>先不标记</button>
+        <button class="primary-btn" data-confirm-self-check>${content.confirmLabel}</button>
+      </div>
+    </section>
+  `;
+  document.body.append(modal);
+  modal.querySelectorAll('[data-close-self-check]').forEach((button) => button.addEventListener('click', closeSelfCheck));
+  modal.querySelector('[data-confirm-self-check]').addEventListener('click', confirmSelfCheck);
+}
+
+function buildSelfCheckContent(point, masteryStatus) {
+  if (masteryStatus === 'fuzzy') {
+    return {
+      title: '标记模糊前，先定位卡点',
+      intro: '不用答给系统听，只要自己确认：到底是概念、公式、适用条件、题型迁移，还是和相邻知识点的边界不清。',
+      confirmLabel: '确认标记模糊',
+      prompts: [
+        `我能说出「${point.title}」属于哪一章、哪一节，以及它在本科目里的作用吗？`,
+        '这个知识点是在解决制度流程、费用计算、工程量规则，还是案例解题步骤的问题？',
+        '它和前后相邻概念最容易混淆的边界是什么？我能讲清差别吗？',
+        '如果出成选择题、计算题或案例小问，我大概知道会问什么吗？',
+        '现在最说不清的是教材哪句话、哪个公式、哪个规则或哪个适用条件？',
+      ],
+    };
+  }
+
+  return {
+    title: '确认掌握前，做一次主动回忆',
+    intro: '不要急着点确认。先合上资料，用自己的话完成下面几步；能说顺，再把它标为掌握。',
+    confirmLabel: '确认掌握',
+    prompts: [
+      `不看书，用自己的话说出「${point.title}」的核心定义或判断规则。`,
+      '说出它的适用条件、计算路径、处理流程或工程量口径。',
+      '举一个造价工作里的使用场景，说明什么时候会用到它。',
+      '说出一个常见陷阱、易错点，或和相邻知识点的区别。',
+      '如果放进案例分析，它可能对应哪类步骤：数据提取、公式选择、清单计量、合同调整、结算，还是书面表达？',
+    ],
+  };
 }
 
 function renderPractice() {

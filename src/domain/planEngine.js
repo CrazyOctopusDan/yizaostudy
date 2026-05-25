@@ -253,6 +253,8 @@ export function ensureTodayTasks(state, today) {
     if (!existing) return template;
     return existing.status === 'completed'
       ? { ...template, status: 'completed', completedAt: existing.completedAt, masteryStatus: existing.masteryStatus }
+      : existing.status === 'postponed'
+        ? { ...template, status: 'postponed', postponedAt: existing.postponedAt }
       : template;
   });
   const completedLegacyTodayTasks = normalizedState.tasks.filter((task) => (
@@ -403,6 +405,20 @@ export function completeTask(state, taskId, completedAt, options = {}) {
       lastStudyDate: completedAt,
     },
   });
+}
+
+export function postponeTask(state, taskId, postponedAt) {
+  const normalizedState = normalizeState(state);
+  const tasks = normalizedState.tasks.map((task) => (
+    task.id === taskId && task.status !== 'completed'
+      ? { ...task, status: 'postponed', postponedAt }
+      : task
+  ));
+
+  return {
+    ...normalizedState,
+    tasks,
+  };
 }
 
 export function updateSubjectSelection(state, selectedSubjectIds) {

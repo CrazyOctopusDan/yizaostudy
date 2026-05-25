@@ -7,6 +7,7 @@ import {
   createDashboard,
   generateTodayTasks,
   normalizeState,
+  postponeTask,
   summarizeRisk,
   updateSubjectSelection,
 } from '../src/domain/planEngine.js';
@@ -145,6 +146,20 @@ test('completeTask records knowledge point mastery and review queue', () => {
 
   assert.equal(updated.knowledgeStatus[knowledgeTask.knowledgePointId].status, 'fuzzy');
   assert.equal(updated.reviewQueue[0].knowledgePointId, knowledgeTask.knowledgePointId);
+});
+
+test('postponeTask postpones only today task without changing knowledge status or EXP', () => {
+  const state = createInitialState({ selectedSubjectIds: ['management'], today: '2026-05-25' });
+  state.tasks = generateTodayTasks(state, '2026-05-25');
+  const knowledgeTask = state.tasks.find((task) => task.sourceType === 'knowledge');
+  const postponed = postponeTask(state, knowledgeTask.id, '2026-05-25');
+  const task = postponed.tasks.find((item) => item.id === knowledgeTask.id);
+
+  assert.equal(task.status, 'postponed');
+  assert.equal(task.postponedAt, '2026-05-25');
+  assert.equal(postponed.knowledgeStatus[knowledgeTask.knowledgePointId].status, 'not-started');
+  assert.equal(postponed.character.totalExp, 0);
+  assert.equal(postponed.reviewQueue.length, 0);
 });
 
 test('normalizeState backfills knowledge status for existing data', () => {

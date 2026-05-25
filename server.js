@@ -12,6 +12,7 @@ import {
   completeTask,
   createDashboard,
   ensureTodayTasks,
+  postponeTask,
   updateSubjectSelection,
 } from './src/domain/planEngine.js';
 import { loadState, saveState, todayIso } from './src/storage/jsonStore.js';
@@ -121,6 +122,14 @@ export function createServer({ dataFile = DEFAULT_DATA_FILE } = {}) {
         const taskId = decodeURIComponent(taskMatch[1]);
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => completeTask(currentState, taskId, today, body));
+        sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
+        return;
+      }
+
+      const postponeTaskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/postpone$/);
+      if (postponeTaskMatch && request.method === 'POST') {
+        const taskId = decodeURIComponent(postponeTaskMatch[1]);
+        const state = await withState(dataFile, today, (currentState) => postponeTask(currentState, taskId, today));
         sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
         return;
       }
