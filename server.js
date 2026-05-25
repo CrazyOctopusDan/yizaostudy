@@ -8,6 +8,7 @@ import {
   addExamRecord,
   addMaterial,
   addQuestion,
+  completeKnowledgePoint,
   completeTask,
   createDashboard,
   ensureTodayTasks,
@@ -57,6 +58,7 @@ function serializeDashboard(dashboard) {
     reviewQueue: dashboard.state.reviewQueue,
     knowledgeStatus: dashboard.state.knowledgeStatus,
     knowledgePoints: dashboard.knowledgePoints,
+    textbookTree: dashboard.textbookTree,
     stage: dashboard.stage,
     daysLeft: dashboard.daysLeft,
     character: dashboard.character,
@@ -115,6 +117,17 @@ export function createServer({ dataFile = DEFAULT_DATA_FILE } = {}) {
         const taskId = decodeURIComponent(taskMatch[1]);
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => completeTask(currentState, taskId, today, body));
+        sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
+        return;
+      }
+
+      const knowledgePointMatch = url.pathname.match(/^\/api\/knowledge-points\/([^/]+)\/complete$/);
+      if (knowledgePointMatch && request.method === 'POST') {
+        const knowledgePointId = decodeURIComponent(knowledgePointMatch[1]);
+        const body = await readRequestBody(request);
+        const state = await withState(dataFile, today, (currentState) => (
+          completeKnowledgePoint(currentState, knowledgePointId, today, body.masteryStatus || 'learned')
+        ));
         sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
         return;
       }

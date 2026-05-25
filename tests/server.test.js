@@ -20,6 +20,34 @@ test('GET /api/dashboard creates local state and returns today tasks', async () 
     assert.equal(body.profile.city, '嘉兴市');
     assert.ok(body.todayTasks.length > 0);
     assert.ok(body.character.level >= 1);
+    assert.ok(body.textbookTree.length >= 4);
+    assert.equal(body.textbookTree[0].chapters[0].sections[0].items[0].status, 'not-started');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test('POST /api/knowledge-points/:id/complete records direct textbook-tree mastery', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'yizaostudy-'));
+  const dataFile = join(dataDir, 'app-data.json');
+  const server = createServer({ dataFile, openBrowser: false });
+
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    const completeResponse = await fetch(`http://127.0.0.1:${port}/api/knowledge-points/management-01-01-01/complete?today=2026-05-25`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ masteryStatus: 'mastered' }),
+    });
+    const completed = await completeResponse.json();
+    const item = completed.textbookTree[0].chapters[0].sections[0].items[0];
+
+    assert.equal(completeResponse.status, 200);
+    assert.equal(item.status, 'mastered');
+    assert.ok(completed.character.totalExp > 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(dataDir, { recursive: true, force: true });

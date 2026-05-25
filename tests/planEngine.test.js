@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   completeTask,
+  completeKnowledgePoint,
   createInitialState,
   createDashboard,
   generateTodayTasks,
@@ -29,10 +30,36 @@ test('generateTodayTasks names the exact knowledge point before sprint month', (
   const tasks = generateTodayTasks(state, '2026-05-25');
   const studyTask = tasks.find((task) => task.sourceType === 'knowledge');
 
-  assert.equal(studyTask.knowledgePointId, 'management-01-01');
+  assert.equal(studyTask.knowledgePointId, 'management-01-01-01');
   assert.match(studyTask.title, /工程造价管理及其基本制度/);
-  assert.match(studyTask.description, /工程造价的基本内容/);
+  assert.match(studyTask.description, /工程造价及计价特征/);
   assert.equal(studyTask.estimatedMinutes, 35);
+});
+
+test('createDashboard exposes textbook tree with chapters, sections, item status, and progress', () => {
+  const state = createInitialState({ selectedSubjectIds: ['management'], today: '2026-05-25' });
+  const dashboard = createDashboard(state, '2026-05-25');
+  const tree = dashboard.textbookTree.find((subject) => subject.subjectId === 'management');
+
+  assert.equal(tree.chapters[0].title, '工程造价管理及其基本制度');
+  assert.equal(tree.chapters[0].sections[0].title, '工程造价基本内容');
+  assert.equal(tree.chapters[0].sections[0].items[0].title, '工程造价及计价特征');
+  assert.equal(tree.chapters[0].sections[0].items[0].status, 'not-started');
+  assert.equal(tree.chapters[0].completedCount, 0);
+  assert.ok(tree.chapters[0].totalCount > 0);
+});
+
+test('completeKnowledgePoint updates tree status, subject progress, and EXP', () => {
+  const state = createInitialState({ selectedSubjectIds: ['management'], today: '2026-05-25' });
+  const updated = completeKnowledgePoint(state, 'management-01-01-01', '2026-05-25', 'mastered');
+  const dashboard = createDashboard(updated, '2026-05-25');
+  const tree = dashboard.textbookTree.find((subject) => subject.subjectId === 'management');
+  const item = tree.chapters[0].sections[0].items[0];
+
+  assert.equal(item.status, 'mastered');
+  assert.ok(tree.chapters[0].completedCount > 0);
+  assert.ok(dashboard.selectedSubjects[0].progress > 0);
+  assert.ok(dashboard.character.totalExp > 0);
 });
 
 test('generateTodayTasks reserves the final month for sprint practice instead of new knowledge', () => {
@@ -68,7 +95,7 @@ test('normalizeState backfills knowledge status for existing data', () => {
   const normalized = normalizeState(legacy);
 
   assert.equal(Object.keys(normalized.knowledgeStatus).length, KNOWLEDGE_POINTS.length);
-  assert.equal(normalized.knowledgeStatus['management-01-01'].status, 'not-started');
+  assert.equal(normalized.knowledgeStatus['management-01-01-01'].status, 'not-started');
 });
 
 test('summarizeRisk reports lag when required tasks are missed', () => {

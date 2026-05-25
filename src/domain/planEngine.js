@@ -1,5 +1,5 @@
 import { awardExamExp, awardTaskExp, calculateLevel } from './rpg.js';
-import { getKnowledgePoint, getKnowledgePointsForSubject, KNOWLEDGE_POINTS } from './knowledgePoints.js';
+import { getKnowledgePoint, getKnowledgePointsForSubject, KNOWLEDGE_POINTS, TEXTBOOK_TREE } from './knowledgePoints.js';
 import { SUBJECTS } from './subjects.js';
 
 export const EXAM_DATE = '2026-10-17';
@@ -35,6 +35,61 @@ function createKnowledgeStatus() {
       },
     ]),
   );
+}
+
+function isCompletedStatus(status) {
+  return status === 'learned' || status === 'fuzzy' || status === 'mastered';
+}
+
+function summarizeNodeProgress(children) {
+  const totalCount = children.reduce((sum, child) => sum + child.totalCount, 0);
+  const completedCount = children.reduce((sum, child) => sum + child.completedCount, 0);
+  return {
+    totalCount,
+    completedCount,
+    progress: totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100),
+  };
+}
+
+export function buildTextbookTreeProgress(state) {
+  const normalizedState = normalizeState(state);
+  return TEXTBOOK_TREE.map((subject) => {
+    const chapters = subject.chapters.map((chapter, chapterIndex) => {
+      const sections = chapter.sections.map((section, sectionIndex) => {
+        const items = section.items.map((title, itemIndex) => {
+          const pointId = `${subject.subjectId}-${String(chapterIndex + 1).padStart(2, '0')}-${String(sectionIndex + 1).padStart(2, '0')}-${String(itemIndex + 1).padStart(2, '0')}`;
+          const point = getKnowledgePoint(pointId);
+          const status = normalizedState.knowledgeStatus[pointId]?.status || 'not-started';
+          return {
+            ...point,
+            status,
+            completed: isCompletedStatus(status),
+            totalCount: 1,
+            completedCount: isCompletedStatus(status) ? 1 : 0,
+          };
+        });
+
+        return {
+          title: section.title,
+          items,
+          ...summarizeNodeProgress(items),
+        };
+      });
+
+      return {
+        title: chapter.title,
+        sections,
+        ...summarizeNodeProgress(sections),
+      };
+    });
+
+    return {
+      subjectId: subject.subjectId,
+      sourceUrl: subject.sourceUrl,
+      chapters,
+      ...summarizeNodeProgress(chapters),
+    };
+  });
 }
 
 export function normalizeState(state) {
@@ -160,7 +215,7 @@ export function generateTodayTasks(state, today) {
           date: today,
           subjectId: subject.id,
           knowledgePointId: nextPoint.id,
-          title: `${subject.shortName} / ${nextPoint.chapter}`,
+          title: `${subject.shortName} / ${nextPoint.chapter} / ${nextPoint.section}`,
           description: `${nextPoint.title}。预计 ${nextPoint.estimatedMinutes} 分钟，重要程度：${nextPoint.importance}。`,
           priority: 'required',
           exp: awardTaskExp('required'),
@@ -215,11 +270,67 @@ export function updateSubjectProgress(state) {
     if (points.length === 0) return subject;
     const completed = points.filter((point) => {
       const status = normalizedState.knowledgeStatus[point.id]?.status;
-      return status === 'learned' || status === 'fuzzy' || status === 'mastered';
+      return isCompletedStatus(status);
     }).length;
     return { ...subject, progress: Math.round((completed / points.length) * 100) };
   });
   return { ...normalizedState, subjects };
+}
+
+export function completeKnowledgePoint(state, knowledgePointId, completedAt, masteryStatus = 'learned') {
+  const normalizedState = normalizeState(state);
+  const point = getKnowledgePoint(knowledgePointId);
+  if (!point) return normalizedState;
+
+  const previousStatus = normalizedState.knowledgeStatus[knowledgePointId]?.status;
+  const gainedExp = isCompletedStatus(previousStatus) ? 0 : awardTaskExp('required');
+  const knowledgeStatus = {
+    ...normalizedState.knowledgeStatus,
+    [knowledgePointId]: {
+      ...normalizedState.knowledgeStatus[knowledgePointId],
+      status: masteryStatus,
+      updatedAt: completedAt,
+    },
+  };
+
+  let reviewQueue = normalizedState.reviewQueue;
+  if (masteryStatus === 'fuzzy' && !reviewQueue.some((item) => item.knowledgePointId === knowledgePointId)) {
+    reviewQueue = [
+      ...reviewQueue,
+      {
+        knowledgePointId,
+        subjectId: point.subjectId,
+        title: point.title,
+        addedAt: completedAt,
+        reason: '标记为模糊',
+      },
+    ];
+  }
+
+  const tasks = normalizedState.tasks.map((task) => (
+    task.knowledgePointId === knowledgePointId && task.status !== 'completed'
+      ? { ...task, status: 'completed', completedAt, masteryStatus }
+      : task
+  ));
+
+  const subjects = normalizedState.subjects.map((subject) => (
+    subject.id === point.subjectId
+      ? { ...subject, masteryExp: subject.masteryExp + gainedExp }
+      : subject
+  ));
+
+  return updateSubjectProgress({
+    ...normalizedState,
+    tasks,
+    subjects,
+    knowledgeStatus,
+    reviewQueue,
+    character: {
+      ...normalizedState.character,
+      totalExp: normalizedState.character.totalExp + gainedExp,
+      lastStudyDate: completedAt,
+    },
+  });
 }
 
 export function completeTask(state, taskId, completedAt, options = {}) {
@@ -387,6 +498,7 @@ export function createDashboard(state, today) {
     selectedSubjects: preparedState.subjects.filter((subject) => subject.selected),
     todayTasks: preparedState.tasks.filter((task) => task.date === today),
     knowledgePoints: KNOWLEDGE_POINTS,
+    textbookTree: buildTextbookTreeProgress(preparedState),
     sprintStartDate: SPRINT_START_DATE,
     risk: summarizeRisk(preparedState, today),
   };
