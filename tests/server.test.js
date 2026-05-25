@@ -22,6 +22,8 @@ test('GET /api/dashboard creates local state and returns today tasks', async () 
     assert.ok(body.character.level >= 1);
     assert.ok(body.textbookTree.length >= 4);
     assert.equal(body.textbookTree[0].chapters[0].sections[0].items[0].status, 'not-started');
+    assert.equal(body.practiceEnabled, true);
+    assert.ok(body.resourceCatalog.questionBanks.length > 0);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await rm(dataDir, { recursive: true, force: true });

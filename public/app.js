@@ -21,6 +21,13 @@ const masteryLabel = {
   mastered: '掌握',
 };
 
+const masteryActionLabel = {
+  learned: '已学',
+  fuzzy: '模糊',
+  mastered: '掌握',
+  'not-started': '取消',
+};
+
 const statusLabel = {
   'not-started': '未开始',
   learned: '已学',
@@ -62,6 +69,13 @@ function subjectName(subjectId) {
 }
 
 function setActiveView() {
+  const practiceNav = navItems.find((item) => item.dataset.view === 'practice');
+  if (practiceNav) {
+    practiceNav.hidden = !state.dashboard.practiceEnabled;
+  }
+  if (state.currentView === 'practice' && !state.dashboard.practiceEnabled) {
+    state.currentView = 'today';
+  }
   views.forEach((view) => view.classList.toggle('active', view.id === state.currentView));
   navItems.forEach((item) => item.classList.toggle('active', item.dataset.view === state.currentView));
 }
@@ -136,9 +150,9 @@ function renderToday() {
     });
   });
 
-  document.querySelectorAll('[data-mastery-task]').forEach((button) => {
+  document.querySelectorAll('[data-task-knowledge-mastery]').forEach((button) => {
     button.addEventListener('click', async () => {
-      state.dashboard = await api(`/api/tasks/${encodeURIComponent(button.dataset.masteryTask)}/complete`, {
+      state.dashboard = await api(`/api/knowledge-points/${encodeURIComponent(button.dataset.taskKnowledgeMastery)}/complete`, {
         method: 'POST',
         body: JSON.stringify({ masteryStatus: button.dataset.masteryStatus }),
       });
@@ -154,8 +168,8 @@ function renderTask(task) {
   const actionHtml = task.sourceType === 'knowledge'
     ? `
       <div class="mastery-actions">
-        ${Object.entries(masteryLabel).map(([status, label]) => `
-          <button class="secondary-btn" data-mastery-task="${task.id}" data-mastery-status="${status}" ${done ? 'disabled' : ''}>${done && task.masteryStatus === status ? `已标记：${label}` : label}</button>
+        ${Object.entries(masteryActionLabel).map(([status, label]) => `
+          <button class="secondary-btn ${status === 'not-started' ? 'danger-btn' : ''}" data-task-knowledge-mastery="${task.knowledgePointId}" data-mastery-status="${status}" ${!done && status === 'not-started' ? 'disabled' : ''}>${done && task.masteryStatus === status ? `已标记：${label}` : label}</button>
         `).join('')}
       </div>
     `
@@ -311,17 +325,30 @@ function renderTreeItem(subjectId, item, itemIndex) {
         ${Object.entries(masteryLabel).map(([masteryStatus, label]) => `
           <button class="secondary-btn" data-tree-mastery="${item.id}" data-mastery-status="${masteryStatus}" ${status === masteryStatus ? 'disabled' : ''}>${label}</button>
         `).join('')}
+        <button class="secondary-btn danger-btn" data-tree-mastery="${item.id}" data-mastery-status="not-started" ${status === 'not-started' ? 'disabled' : ''}>取消</button>
       </div>
     </article>
   `;
 }
 
 function renderPractice() {
+  if (!state.dashboard.practiceEnabled) {
+    document.querySelector('#practice').innerHTML = '';
+    return;
+  }
+  const questionResources = state.dashboard.resourceCatalog.questionBanks || [];
   document.querySelector('#practice').innerHTML = `
-    <div class="grid two">
+    <div class="grid">
       <section class="panel">
-        <h3>错题与真题</h3>
-        <div class="list">
+        <h3>外部题库入口</h3>
+        <div class="resource-grid">
+          ${questionResources.map(renderResourceCard).join('') || emptyHtml()}
+        </div>
+      </section>
+      <div class="grid two">
+        <section class="panel">
+          <h3>错题与真题记录</h3>
+          <div class="list">
           ${state.dashboard.questions.map((question) => `
             <div class="list-item">
               <strong>${subjectName(question.subjectId)} ${question.year || ''}</strong>
@@ -330,52 +357,65 @@ function renderPractice() {
               ${question.sourceUrl ? `<a href="${question.sourceUrl}" target="_blank" rel="noreferrer">来源链接</a>` : ''}
             </div>
           `).join('') || emptyHtml()}
-        </div>
-      </section>
-      <section class="panel">
-        <h3>新增题目</h3>
-        <form id="questionForm" class="form-grid">
-          ${subjectSelectHtml()}
-          <label>年份<input name="year" placeholder="2024"></label>
-          <label>题干<textarea name="stem" required rows="4"></textarea></label>
-          <label>答案<input name="answer"></label>
-          <label>解析<textarea name="explanation" rows="3"></textarea></label>
-          <label>来源链接<input name="sourceUrl" type="url"></label>
-          <button class="primary-btn" type="submit">保存题目</button>
-        </form>
-      </section>
+          </div>
+        </section>
+        <section class="panel">
+          <h3>记录外部练习</h3>
+          <form id="questionForm" class="form-grid">
+            ${subjectSelectHtml()}
+            <label>年份<input name="year" placeholder="2024"></label>
+            <label>题目或错因摘要<textarea name="stem" required rows="4"></textarea></label>
+            <label>答案<input name="answer"></label>
+            <label>解析<textarea name="explanation" rows="3"></textarea></label>
+            <label>来源链接<input name="sourceUrl" type="url"></label>
+            <button class="primary-btn" type="submit">保存记录</button>
+          </form>
+        </section>
+      </div>
     </div>
   `;
   bindForm('#questionForm', '/api/questions');
 }
 
 function renderMaterials() {
+  const catalog = state.dashboard.resourceCatalog;
   document.querySelector('#materials').innerHTML = `
-    <div class="grid two">
+    <div class="grid">
       <section class="panel">
-        <h3>资料列表</h3>
-        <div class="list">
-          ${state.dashboard.materials.map((material) => `
-            <div class="list-item">
-              <strong>${material.title}</strong>
-              <p class="muted">${subjectName(material.subjectId)} · ${material.type}</p>
-              ${material.url ? `<a href="${material.url}" target="_blank" rel="noreferrer">${material.url}</a>` : ''}
-              ${material.notes ? `<p>${material.notes}</p>` : ''}
-            </div>
-          `).join('') || emptyHtml()}
+        <h3>官方与学习资源</h3>
+        <div class="resource-section">
+          ${renderResourceGroup('官方入口', catalog.official)}
+          ${renderResourceGroup('教材/讲义/真题资料', catalog.materials)}
+          ${renderResourceGroup('网课直达', catalog.courses)}
+          ${renderResourceGroup('题库与章节练习', catalog.questionBanks)}
         </div>
       </section>
-      <section class="panel">
-        <h3>新增资料</h3>
-        <form id="materialForm" class="form-grid">
-          ${subjectSelectHtml()}
-          <label>标题<input name="title" required></label>
-          <label>类型<select name="type"><option value="book">教材</option><option value="course">网课</option><option value="pdf">PDF</option><option value="link">链接</option></select></label>
-          <label>链接或本地路径<input name="url"></label>
-          <label>备注<textarea name="notes" rows="3"></textarea></label>
-          <button class="primary-btn" type="submit">保存资料</button>
-        </form>
-      </section>
+      <div class="grid two">
+        <section class="panel">
+          <h3>我的资料</h3>
+          <div class="list">
+            ${state.dashboard.materials.map((material) => `
+              <div class="list-item">
+                <strong>${material.title}</strong>
+                <p class="muted">${subjectName(material.subjectId)} · ${material.type}</p>
+                ${material.url ? `<a href="${material.url}" target="_blank" rel="noreferrer">${material.url}</a>` : ''}
+                ${material.notes ? `<p>${material.notes}</p>` : ''}
+              </div>
+            `).join('') || emptyHtml()}
+          </div>
+        </section>
+        <section class="panel">
+          <h3>新增资料</h3>
+          <form id="materialForm" class="form-grid">
+            ${subjectSelectHtml()}
+            <label>标题<input name="title" required></label>
+            <label>类型<select name="type"><option value="book">教材</option><option value="course">网课</option><option value="pdf">PDF</option><option value="link">链接</option></select></label>
+            <label>链接或本地路径<input name="url"></label>
+            <label>备注<textarea name="notes" rows="3"></textarea></label>
+            <button class="primary-btn" type="submit">保存资料</button>
+          </form>
+        </section>
+      </div>
     </div>
   `;
   bindForm('#materialForm', '/api/materials');
@@ -384,47 +424,123 @@ function renderMaterials() {
 function renderReview() {
   const completed = state.dashboard.todayTasks.filter((task) => task.status === 'completed').length;
   const total = state.dashboard.todayTasks.length;
+  const insights = state.dashboard.reviewInsights;
   document.querySelector('#review').innerHTML = `
-    <div class="grid two">
+    <div class="grid">
       <section class="panel">
-        <h3>今日复盘</h3>
+        <h3>冒险复盘</h3>
         <div class="grid three">
           <div class="list-item"><span class="muted">任务完成</span><h3>${completed}/${total}</h3></div>
           <div class="list-item"><span class="muted">角色等级</span><h3>Lv.${state.dashboard.character.level}</h3></div>
           <div class="list-item"><span class="muted">当前风险</span><h3>${state.dashboard.risk.level}</h3></div>
         </div>
-        <h3>模糊知识点</h3>
-        <div class="list">
-          ${state.dashboard.reviewQueue.map((item) => `
-            <div class="list-item">
-              <strong>${subjectName(item.subjectId)}</strong>
-              <p>${item.title}</p>
-              <p class="muted">${item.reason}</p>
-            </div>
-          `).join('') || emptyHtml()}
+        <div class="rpg-review-grid">
+          <article class="rpg-card boss">
+            <span>Boss 雷达</span>
+            <strong>${insights.bossRadar.prerequisiteAverage}%</strong>
+            <p>${insights.bossRadar.message}</p>
+          </article>
+          <article class="rpg-card ${insights.caseLinkage.level}">
+            <span>案例联动</span>
+            <strong>${insights.caseLinkage.level === 'high' ? '高风险' : insights.caseLinkage.level === 'medium' ? '关注' : '稳定'}</strong>
+            <p>${insights.caseLinkage.message}</p>
+          </article>
+          <article class="rpg-card">
+            <span>回忆挑战</span>
+            <strong>主动检索</strong>
+            <p>${insights.recallChallenge.prompt}</p>
+          </article>
+          <article class="rpg-card warning">
+            <span>冲刺警戒线</span>
+            <strong>${state.dashboard.sprintStartDate}</strong>
+            <p>${insights.sprintWarning.message}</p>
+          </article>
         </div>
       </section>
+      <div class="grid two">
+        <section class="panel">
+          <h3>弱点副本</h3>
+          <div class="list">
+            ${insights.weaknessDungeon.items.map((item) => `
+              <div class="list-item">
+                <strong>${subjectName(item.subjectId)} · ${item.chapter}</strong>
+                <p>${item.title}</p>
+                <p class="muted">${item.reason}</p>
+              </div>
+            `).join('') || emptyHtml()}
+          </div>
+          <h3>下一步动作</h3>
+          <div class="list">
+            ${insights.nextActions.map((action) => `<div class="list-item">${action}</div>`).join('')}
+          </div>
+        </section>
+        <section class="panel">
+          <h3>外部考试记录</h3>
+          <form id="examForm" class="form-grid">
+            ${subjectSelectHtml()}
+            <label>名称<input name="title" required placeholder="2021 管理真题"></label>
+            <label>得分<input name="score" type="number" min="0" max="100" required></label>
+            <label>难度<select name="difficulty"><option value="normal">普通</option><option value="hard">较难</option><option value="easy">简单</option></select></label>
+            <button class="primary-btn" type="submit">记录得分</button>
+          </form>
+          <div class="list">
+            ${state.dashboard.examRecords.map((record) => `
+              <div class="list-item">
+                <strong>${record.title}</strong>
+                <p class="muted">${subjectName(record.subjectId)} · ${record.score} 分 · +${record.exp} EXP</p>
+              </div>
+            `).join('') || emptyHtml()}
+          </div>
+        </section>
+      </div>
       <section class="panel">
-        <h3>外部考试记录</h3>
-        <form id="examForm" class="form-grid">
-          ${subjectSelectHtml()}
-          <label>名称<input name="title" required placeholder="2021 管理真题"></label>
-          <label>得分<input name="score" type="number" min="0" max="100" required></label>
-          <label>难度<select name="difficulty"><option value="normal">普通</option><option value="hard">较难</option><option value="easy">简单</option></select></label>
-          <button class="primary-btn" type="submit">记录得分</button>
-        </form>
-        <div class="list">
-          ${state.dashboard.examRecords.map((record) => `
-            <div class="list-item">
-              <strong>${record.title}</strong>
-              <p class="muted">${subjectName(record.subjectId)} · ${record.score} 分 · +${record.exp} EXP</p>
-            </div>
-          `).join('') || emptyHtml()}
+        <h3>计划可行性</h3>
+        <div class="strategy-list">
+          <p>${state.dashboard.learningStrategy.examViewpoint}</p>
+          <p>${state.dashboard.learningStrategy.pedagogyViewpoint}</p>
+          <p>${state.dashboard.learningStrategy.scheduleRule}</p>
         </div>
       </section>
     </div>
   `;
   bindForm('#examForm', '/api/exam-records');
+}
+
+function renderResourceGroup(title, resources = []) {
+  return `
+    <div class="resource-group">
+      <h4>${title}</h4>
+      <div class="resource-grid">
+        ${resources.map(renderResourceCard).join('') || emptyHtml()}
+      </div>
+    </div>
+  `;
+}
+
+function renderResourceCard(resource) {
+  return `
+    <article class="resource-card">
+      <div>
+        <strong>${resource.title}</strong>
+        <p class="muted">${resource.note}</p>
+      </div>
+      <div class="resource-meta">
+        <span>${resource.subjectId === 'all' ? '全科' : subjectName(resource.subjectId)}</span>
+        <span>${accessLabel(resource.accessLevel)}</span>
+      </div>
+      <a class="primary-btn link-btn" href="${resource.url}" target="_blank" rel="noreferrer">打开</a>
+    </article>
+  `;
+}
+
+function accessLabel(accessLevel) {
+  const labels = {
+    free: '免费公开',
+    'partial-free': '部分免费',
+    registration: '需登录',
+    unknown: '待确认',
+  };
+  return labels[accessLevel] || '待确认';
 }
 
 function subjectSelectHtml() {

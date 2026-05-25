@@ -1,5 +1,7 @@
 import { awardExamExp, awardTaskExp, calculateLevel } from './rpg.js';
 import { getKnowledgePoint, getKnowledgePointsForSubject, KNOWLEDGE_POINTS, TEXTBOOK_TREE } from './knowledgePoints.js';
+import { createLearningStrategy, createReviewInsights } from './learningInsights.js';
+import { groupResourceCatalog, hasQuestionBankResources } from './resourceCatalog.js';
 import { SUBJECTS } from './subjects.js';
 
 export const EXAM_DATE = '2026-10-17';
@@ -283,18 +285,25 @@ export function completeKnowledgePoint(state, knowledgePointId, completedAt, mas
   if (!point) return normalizedState;
 
   const previousStatus = normalizedState.knowledgeStatus[knowledgePointId]?.status;
-  const gainedExp = isCompletedStatus(previousStatus) ? 0 : awardTaskExp('required');
+  const normalizedMasteryStatus = ['not-started', 'learned', 'fuzzy', 'mastered'].includes(masteryStatus)
+    ? masteryStatus
+    : 'learned';
+  const expDelta = normalizedMasteryStatus === 'not-started' && isCompletedStatus(previousStatus)
+    ? -awardTaskExp('required')
+    : !isCompletedStatus(previousStatus) && isCompletedStatus(normalizedMasteryStatus)
+      ? awardTaskExp('required')
+      : 0;
   const knowledgeStatus = {
     ...normalizedState.knowledgeStatus,
     [knowledgePointId]: {
       ...normalizedState.knowledgeStatus[knowledgePointId],
-      status: masteryStatus,
-      updatedAt: completedAt,
+      status: normalizedMasteryStatus,
+      updatedAt: normalizedMasteryStatus === 'not-started' ? null : completedAt,
     },
   };
 
-  let reviewQueue = normalizedState.reviewQueue;
-  if (masteryStatus === 'fuzzy' && !reviewQueue.some((item) => item.knowledgePointId === knowledgePointId)) {
+  let reviewQueue = normalizedState.reviewQueue.filter((item) => item.knowledgePointId !== knowledgePointId);
+  if (normalizedMasteryStatus === 'fuzzy') {
     reviewQueue = [
       ...reviewQueue,
       {
@@ -308,14 +317,16 @@ export function completeKnowledgePoint(state, knowledgePointId, completedAt, mas
   }
 
   const tasks = normalizedState.tasks.map((task) => (
-    task.knowledgePointId === knowledgePointId && task.status !== 'completed'
-      ? { ...task, status: 'completed', completedAt, masteryStatus }
+    task.knowledgePointId === knowledgePointId
+      ? normalizedMasteryStatus === 'not-started'
+        ? { ...task, status: 'pending', completedAt: null, masteryStatus: null }
+        : { ...task, status: 'completed', completedAt, masteryStatus: normalizedMasteryStatus }
       : task
   ));
 
   const subjects = normalizedState.subjects.map((subject) => (
     subject.id === point.subjectId
-      ? { ...subject, masteryExp: subject.masteryExp + gainedExp }
+      ? { ...subject, masteryExp: Math.max(0, subject.masteryExp + expDelta) }
       : subject
   ));
 
@@ -327,8 +338,8 @@ export function completeKnowledgePoint(state, knowledgePointId, completedAt, mas
     reviewQueue,
     character: {
       ...normalizedState.character,
-      totalExp: normalizedState.character.totalExp + gainedExp,
-      lastStudyDate: completedAt,
+      totalExp: Math.max(0, normalizedState.character.totalExp + expDelta),
+      lastStudyDate: normalizedMasteryStatus === 'not-started' ? normalizedState.character.lastStudyDate : completedAt,
     },
   });
 }
@@ -501,5 +512,9 @@ export function createDashboard(state, today) {
     textbookTree: buildTextbookTreeProgress(preparedState),
     sprintStartDate: SPRINT_START_DATE,
     risk: summarizeRisk(preparedState, today),
+    learningStrategy: createLearningStrategy(preparedState),
+    reviewInsights: createReviewInsights(preparedState, today),
+    resourceCatalog: groupResourceCatalog(),
+    practiceEnabled: hasQuestionBankResources(),
   };
 }

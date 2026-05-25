@@ -62,6 +62,31 @@ test('completeKnowledgePoint updates tree status, subject progress, and EXP', ()
   assert.ok(dashboard.character.totalExp > 0);
 });
 
+test('completeKnowledgePoint can reset a mistaken status to not-started', () => {
+  const state = createInitialState({ selectedSubjectIds: ['management'], today: '2026-05-25' });
+  const fuzzy = completeKnowledgePoint(state, 'management-01-01-01', '2026-05-25', 'fuzzy');
+  const reset = completeKnowledgePoint(fuzzy, 'management-01-01-01', '2026-05-25', 'not-started');
+  const dashboard = createDashboard(reset, '2026-05-25');
+  const tree = dashboard.textbookTree.find((subject) => subject.subjectId === 'management');
+  const item = tree.chapters[0].sections[0].items[0];
+
+  assert.equal(item.status, 'not-started');
+  assert.equal(item.completed, false);
+  assert.equal(tree.chapters[0].completedCount, 0);
+  assert.equal(dashboard.character.totalExp, 0);
+  assert.equal(dashboard.state.reviewQueue.some((entry) => entry.knowledgePointId === 'management-01-01-01'), false);
+});
+
+test('completeKnowledgePoint changes fuzzy to mastered without duplicate EXP', () => {
+  const state = createInitialState({ selectedSubjectIds: ['management'], today: '2026-05-25' });
+  const fuzzy = completeKnowledgePoint(state, 'management-01-01-01', '2026-05-25', 'fuzzy');
+  const mastered = completeKnowledgePoint(fuzzy, 'management-01-01-01', '2026-05-26', 'mastered');
+
+  assert.equal(mastered.knowledgeStatus['management-01-01-01'].status, 'mastered');
+  assert.equal(mastered.reviewQueue.some((entry) => entry.knowledgePointId === 'management-01-01-01'), false);
+  assert.equal(mastered.character.totalExp, fuzzy.character.totalExp);
+});
+
 test('generateTodayTasks reserves the final month for sprint practice instead of new knowledge', () => {
   const state = createInitialState({ selectedSubjectIds: ['pricing'], today: '2026-09-17' });
   const tasks = generateTodayTasks(state, '2026-09-17');
@@ -69,6 +94,39 @@ test('generateTodayTasks reserves the final month for sprint practice instead of
   assert.ok(tasks.length > 0);
   assert.ok(tasks.every((task) => task.sourceType !== 'knowledge'));
   assert.ok(tasks.some((task) => task.title.includes('冲刺')));
+});
+
+test('createDashboard flags case-analysis risk when prerequisite subjects are weak', () => {
+  const state = createInitialState({
+    selectedSubjectIds: ['management', 'pricing', 'civil-measurement', 'case-analysis'],
+    today: '2026-08-20',
+  });
+  const dashboard = createDashboard(state, '2026-08-20');
+
+  assert.equal(dashboard.learningStrategy.examViewpoint, '案例分析必须跟着管理、计价、计量做影子练习，不能等到最后一个月才开始。');
+  assert.equal(dashboard.reviewInsights.caseLinkage.level, 'high');
+  assert.match(dashboard.reviewInsights.caseLinkage.message, /案例/);
+  assert.ok(dashboard.reviewInsights.nextActions.some((action) => action.includes('案例影子任务')));
+});
+
+test('createDashboard recommends retrieval practice for fuzzy knowledge points', () => {
+  const state = createInitialState({ selectedSubjectIds: ['pricing'], today: '2026-05-25' });
+  const fuzzy = completeKnowledgePoint(state, 'pricing-02-03-01', '2026-05-25', 'fuzzy');
+  const dashboard = createDashboard(fuzzy, '2026-05-26');
+
+  assert.ok(dashboard.reviewInsights.weaknessDungeon.items.some((item) => item.id === 'pricing-02-03-01'));
+  assert.match(dashboard.reviewInsights.recallChallenge.prompt, /不看书/);
+  assert.ok(dashboard.reviewInsights.nextActions.some((action) => action.includes('检索练习')));
+});
+
+test('createDashboard exposes categorized resources and enables practice when question banks exist', () => {
+  const state = createInitialState({ selectedSubjectIds: ['pricing'], today: '2026-05-25' });
+  const dashboard = createDashboard(state, '2026-05-25');
+
+  assert.equal(dashboard.practiceEnabled, true);
+  assert.ok(dashboard.resourceCatalog.official.some((resource) => resource.title.includes('考试大纲')));
+  assert.ok(dashboard.resourceCatalog.questionBanks.some((resource) => resource.title.includes('真题')));
+  assert.ok(dashboard.resourceCatalog.materials.some((resource) => resource.accessLevel === 'partial-free'));
 });
 
 test('completeTask awards EXP and marks task complete', () => {

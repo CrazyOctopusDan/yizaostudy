@@ -66,6 +66,10 @@ function serializeDashboard(dashboard) {
     todayTasks: dashboard.todayTasks,
     sprintStartDate: dashboard.sprintStartDate,
     risk: dashboard.risk,
+    learningStrategy: dashboard.learningStrategy,
+    reviewInsights: dashboard.reviewInsights,
+    resourceCatalog: dashboard.resourceCatalog,
+    practiceEnabled: dashboard.practiceEnabled,
   };
 }
 
