@@ -6,10 +6,12 @@
 
 1. 安装 Node.js LTS: <https://nodejs.org/>
 2. 解压项目压缩包。
-3. 双击 `启动学习计划.bat`。
+3. 双击 `start-yizaostudy.cmd`。如果想用中文入口，也可以双击 `启动学习计划.bat`。
 4. 浏览器会打开 `http://127.0.0.1:4173`。
 
 学习数据保存在解压目录的 `data/app-data.json`。备份时复制整个项目目录，或至少复制 `data/app-data.json`。
+
+如果启动窗口闪退或没有打开网页，先重新双击 `start-yizaostudy.cmd`。新版启动脚本会把错误留在窗口中，并在同目录生成 `startup.log`，常见原因是没有安装 Node.js、Node.js 版本低于 20，或 4173 端口已被其他程序占用。
 
 ## 学习计划规则
 
