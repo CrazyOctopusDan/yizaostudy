@@ -21,6 +21,13 @@ const masteryLabel = {
   mastered: '掌握',
 };
 
+const statusLabel = {
+  'not-started': '未开始',
+  learned: '已学',
+  fuzzy: '模糊',
+  mastered: '掌握',
+};
+
 const views = [...document.querySelectorAll('.view')];
 const navItems = [...document.querySelectorAll('.nav-item')];
 
@@ -199,23 +206,10 @@ function renderPlan() {
         </div>
       </section>
       <section class="panel">
-        <h3>知识点进度</h3>
-        <p class="muted">系统会在 ${state.dashboard.sprintStartDate} 前完成已勾选科目的第一轮知识点学习，最后一个月保留给冲刺刷题。</p>
-        <div class="list">
-          ${state.dashboard.selectedSubjects.map((subject) => {
-            const points = state.dashboard.knowledgePoints.filter((point) => point.subjectId === subject.id);
-            const learned = points.filter((point) => {
-              const status = state.dashboard.knowledgeStatus[point.id]?.status;
-              return ['learned', 'fuzzy', 'mastered'].includes(status);
-            }).length;
-            const nextPoint = points.find((point) => state.dashboard.knowledgeStatus[point.id]?.status === 'not-started');
-            return `
-              <div class="list-item">
-                <div class="subject-row"><strong>${subject.shortName}</strong><span>${learned}/${points.length}</span></div>
-                <p class="muted">下一知识点：${nextPoint ? `${nextPoint.chapter} / ${nextPoint.title}` : '第一轮已学完，进入复盘。'}</p>
-              </div>
-            `;
-          }).join('') || emptyHtml()}
+        <h3>教材目录树</h3>
+        <p class="muted">系统会在 ${state.dashboard.sprintStartDate} 前完成已勾选科目的第一轮教材目录学习，最后一个月保留给冲刺刷题。</p>
+        <div class="textbook-tree">
+          ${renderTextbookTree()}
         </div>
       </section>
       <section class="panel">
@@ -242,6 +236,84 @@ function renderPlan() {
       render();
     });
   });
+
+  document.querySelectorAll('[data-tree-mastery]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.dashboard = await api(`/api/knowledge-points/${encodeURIComponent(button.dataset.treeMastery)}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ masteryStatus: button.dataset.masteryStatus }),
+      });
+      render();
+    });
+  });
+}
+
+function renderTextbookTree() {
+  const selectedIds = new Set(state.dashboard.selectedSubjects.map((subject) => subject.id));
+  const selectedTrees = state.dashboard.textbookTree.filter((tree) => selectedIds.has(tree.subjectId));
+  if (selectedTrees.length === 0) return emptyHtml();
+
+  return selectedTrees.map((tree) => `
+    <section class="tree-subject">
+      <div class="tree-subject-head">
+        <div>
+          <strong>${subjectName(tree.subjectId)}</strong>
+          <p class="muted">${tree.completedCount}/${tree.totalCount} 个教材节点</p>
+        </div>
+        <strong>${tree.progress}%</strong>
+      </div>
+      <div class="bar"><span style="width:${tree.progress}%"></span></div>
+      ${tree.chapters.map((chapter, chapterIndex) => renderChapter(tree.subjectId, chapter, chapterIndex)).join('')}
+    </section>
+  `).join('');
+}
+
+function renderChapter(subjectId, chapter, chapterIndex) {
+  return `
+    <details class="tree-chapter" ${chapterIndex === 0 ? 'open' : ''}>
+      <summary>
+        <span>${chapterIndex + 1}. ${chapter.title}</span>
+        <span>${chapter.completedCount}/${chapter.totalCount} · ${chapter.progress}%</span>
+      </summary>
+      ${chapter.sections.map((section, sectionIndex) => renderSection(subjectId, section, sectionIndex)).join('')}
+    </details>
+  `;
+}
+
+function renderSection(subjectId, section, sectionIndex) {
+  return `
+    <div class="tree-section">
+      <div class="tree-section-head">
+        <strong>${sectionIndex + 1}. ${section.title}</strong>
+        <span>${section.completedCount}/${section.totalCount}</span>
+      </div>
+      ${section.items.map((item, itemIndex) => renderTreeItem(subjectId, item, itemIndex)).join('')}
+    </div>
+  `;
+}
+
+function renderTreeItem(subjectId, item, itemIndex) {
+  const status = item.status || 'not-started';
+  const sourceLink = item.sourceUrl ? `<a href="${item.sourceUrl}" target="_blank" rel="noreferrer">目录来源</a>` : '';
+  return `
+    <article class="tree-item ${status}">
+      <div class="tree-item-main">
+        <span class="tree-index">${itemIndex + 1}</span>
+        <div>
+          <div class="tree-title-row">
+            <strong>${item.title}</strong>
+            <span class="status-pill ${status}">${statusLabel[status]}</span>
+          </div>
+          <p class="muted">${item.estimatedMinutes} 分钟 · ${item.importance} · ${subjectName(subjectId)} ${sourceLink}</p>
+        </div>
+      </div>
+      <div class="mastery-actions">
+        ${Object.entries(masteryLabel).map(([masteryStatus, label]) => `
+          <button class="secondary-btn" data-tree-mastery="${item.id}" data-mastery-status="${masteryStatus}" ${status === masteryStatus ? 'disabled' : ''}>${label}</button>
+        `).join('')}
+      </div>
+    </article>
+  `;
 }
 
 function renderPractice() {

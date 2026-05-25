@@ -365,6 +365,128 @@ button {
   height: 18px;
 }
 
+.textbook-tree,
+.tree-subject {
+  display: grid;
+  gap: 12px;
+}
+
+.tree-subject {
+  border-top: 2px solid #e0bb78;
+  padding-top: 12px;
+}
+
+.tree-subject:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.tree-subject-head,
+.tree-section-head,
+.tree-title-row,
+.tree-item-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tree-chapter {
+  border: 2px solid #d2a15f;
+  border-radius: 8px;
+  background: #fffdf5;
+  overflow: hidden;
+}
+
+.tree-chapter summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  background: #f8dfaa;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.tree-section {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #e0bb78;
+}
+
+.tree-section-head {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tree-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e6c78b;
+  border-radius: 8px;
+  background: #fffaf0;
+  padding: 10px;
+}
+
+.tree-item.learned,
+.tree-item.mastered {
+  background: #f1f8e8;
+}
+
+.tree-item.fuzzy {
+  background: #fff2d1;
+}
+
+.tree-item-main {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.tree-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #9c713d;
+  border-radius: 50%;
+  background: #fff8e8;
+  font-weight: 800;
+}
+
+.tree-title-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #ead29c;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-pill.learned,
+.status-pill.mastered {
+  background: #cfe8bd;
+  color: #315c33;
+}
+
+.status-pill.fuzzy {
+  background: #f6cf7d;
+  color: #7a4b13;
+}
+
+.tree-item a {
+  color: #2f6f91;
+}
+
 .form-grid {
   display: grid;
   gap: 10px;
@@ -430,5 +552,16 @@ button {
 
   .map {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tree-item {
+    grid-template-columns: 1fr;
+  }
+
+  .tree-subject-head,
+  .tree-section-head,
+  .tree-chapter summary {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
