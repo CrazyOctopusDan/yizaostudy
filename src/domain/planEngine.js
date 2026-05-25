@@ -1,7 +1,9 @@
 import { awardExamExp, awardTaskExp, calculateLevel } from './rpg.js';
+import { getKnowledgePoint, getKnowledgePointsForSubject, KNOWLEDGE_POINTS } from './knowledgePoints.js';
 import { SUBJECTS } from './subjects.js';
 
 export const EXAM_DATE = '2026-10-17';
+export const SPRINT_START_DATE = '2026-09-17';
 
 function daysBetween(startDate, endDate) {
   const start = new Date(`${startDate}T00:00:00`);
@@ -14,11 +16,54 @@ function selectedSubjectSet(selectedSubjectIds) {
 }
 
 export function getStage(today) {
+  if (today >= SPRINT_START_DATE) return '冲刺期';
   const remaining = daysBetween(today, EXAM_DATE);
   if (remaining > 110) return '习惯期';
   if (remaining > 60) return '系统学习期';
   if (remaining > 21) return '强化期';
   return '冲刺期';
+}
+
+function createKnowledgeStatus() {
+  return Object.fromEntries(
+    KNOWLEDGE_POINTS.map((point) => [
+      point.id,
+      {
+        status: 'not-started',
+        reviewCount: 0,
+        updatedAt: null,
+      },
+    ]),
+  );
+}
+
+export function normalizeState(state) {
+  const existingStatus = state.knowledgeStatus || {};
+  return {
+    ...state,
+    character: {
+      name: '造价勇者',
+      totalExp: 0,
+      streak: 0,
+      lastStudyDate: null,
+      ...state.character,
+    },
+    materials: state.materials || [],
+    questions: state.questions || [],
+    examRecords: state.examRecords || [],
+    reviewQueue: state.reviewQueue || [],
+    knowledgeStatus: Object.fromEntries(
+      KNOWLEDGE_POINTS.map((point) => [
+        point.id,
+        {
+          status: 'not-started',
+          reviewCount: 0,
+          updatedAt: null,
+          ...existingStatus[point.id],
+        },
+      ]),
+    ),
+  };
 }
 
 export function createInitialState({ selectedSubjectIds = [], today = '2026-05-25' } = {}) {
@@ -49,34 +94,88 @@ export function createInitialState({ selectedSubjectIds = [], today = '2026-05-2
     questions: [],
     examRecords: [],
     reviewQueue: [],
+    knowledgeStatus: createKnowledgeStatus(),
   };
 }
 
 export function generateTodayTasks(state, today) {
+  const normalizedState = normalizeState(state);
   const stage = getStage(today);
 
-  return state.subjects
+  return normalizedState.subjects
     .filter((subject) => subject.selected)
     .flatMap((subject, index) => {
+      if (today >= SPRINT_START_DATE) {
+        return [
+          {
+            id: `${today}-${subject.id}-sprint-paper`,
+            date: today,
+            subjectId: subject.id,
+            title: `${subject.shortName} 冲刺刷题`,
+            description: '最后一个月只安排套卷、真题、错题和薄弱点回炉，不再推进新知识点。',
+            priority: index === 0 ? 'required' : 'suggested',
+            exp: awardTaskExp(index === 0 ? 'required' : 'suggested'),
+            status: 'pending',
+            sourceType: 'practice',
+          },
+          {
+            id: `${today}-${subject.id}-sprint-review`,
+            date: today,
+            subjectId: subject.id,
+            title: `${subject.shortName} 薄弱点回炉`,
+            description: '复盘模糊、错题和高频知识点，整理考前记忆清单。',
+            priority: 'suggested',
+            exp: awardTaskExp('suggested'),
+            status: 'pending',
+            sourceType: 'review',
+          },
+        ];
+      }
+
+      const nextPoint = getKnowledgePointsForSubject(subject.id).find((point) => {
+        const status = normalizedState.knowledgeStatus[point.id]?.status;
+        return status === 'not-started' || status === 'fuzzy';
+      });
+
+      if (!nextPoint) {
+        return [
+          {
+            id: `${today}-${subject.id}-knowledge-review`,
+            date: today,
+            subjectId: subject.id,
+            title: `${subject.shortName} 知识点复盘`,
+            description: '本轮知识点已学完，今天复盘错题和模糊知识点。',
+            priority: 'required',
+            exp: awardTaskExp('required'),
+            status: 'pending',
+            sourceType: 'review',
+          },
+        ];
+      }
+
       const practicePriority = index === 0 ? 'suggested' : 'optional';
       return [
         {
-          id: `${today}-${subject.id}-main`,
+          id: `${today}-${nextPoint.id}`,
           date: today,
           subjectId: subject.id,
-          title: `${subject.shortName} 主线学习`,
-          description: `${stage}：完成一个教材小节，并记录 3 个关键点。`,
+          knowledgePointId: nextPoint.id,
+          title: `${subject.shortName} / ${nextPoint.chapter}`,
+          description: `${nextPoint.title}。预计 ${nextPoint.estimatedMinutes} 分钟，重要程度：${nextPoint.importance}。`,
           priority: 'required',
           exp: awardTaskExp('required'),
           status: 'pending',
-          sourceType: 'study',
+          sourceType: 'knowledge',
+          estimatedMinutes: nextPoint.estimatedMinutes,
+          importance: nextPoint.importance,
+          sourceUrl: nextPoint.sourceUrl,
         },
         {
           id: `${today}-${subject.id}-practice`,
           date: today,
           subjectId: subject.id,
-          title: `${subject.shortName} 真题练习`,
-          description: index === 0 ? '完成 10 道相关真题或错题复盘。' : '完成 5 道相关真题或错题复盘。',
+          title: `${subject.shortName} 配套练习`,
+          description: `围绕“${nextPoint.title}”完成 5-10 道相关题或整理 2 条易错点。`,
           priority: practicePriority,
           exp: awardTaskExp(practicePriority),
           status: 'pending',
@@ -87,44 +186,98 @@ export function generateTodayTasks(state, today) {
 }
 
 export function ensureTodayTasks(state, today) {
-  const existing = state.tasks.some((task) => task.date === today);
-  if (existing) return state;
-  return { ...state, tasks: [...state.tasks, ...generateTodayTasks(state, today)] };
+  const normalizedState = normalizeState(state);
+  const selectedIds = new Set(normalizedState.subjects.filter((subject) => subject.selected).map((subject) => subject.id));
+  const todayTemplates = generateTodayTasks(normalizedState, today);
+  const existingTodayById = new Map(normalizedState.tasks.filter((task) => task.date === today).map((task) => [task.id, task]));
+  const nonTodayTasks = normalizedState.tasks.filter((task) => task.date !== today);
+  const refreshedTodayTasks = todayTemplates.map((template) => {
+    const existing = existingTodayById.get(template.id);
+    if (!existing) return template;
+    return existing.status === 'completed'
+      ? { ...template, status: 'completed', completedAt: existing.completedAt, masteryStatus: existing.masteryStatus }
+      : template;
+  });
+  const completedLegacyTodayTasks = normalizedState.tasks.filter((task) => (
+    task.date === today
+    && task.status === 'completed'
+    && selectedIds.has(task.subjectId)
+    && !todayTemplates.some((template) => template.id === task.id)
+  ));
+
+  return { ...normalizedState, tasks: [...nonTodayTasks, ...refreshedTodayTasks, ...completedLegacyTodayTasks] };
 }
 
 export function updateSubjectProgress(state) {
-  const subjects = state.subjects.map((subject) => {
-    const subjectTasks = state.tasks.filter((task) => task.subjectId === subject.id);
-    if (subjectTasks.length === 0) return subject;
-    const completed = subjectTasks.filter((task) => task.status === 'completed').length;
-    return { ...subject, progress: Math.round((completed / subjectTasks.length) * 100) };
+  const normalizedState = normalizeState(state);
+  const subjects = normalizedState.subjects.map((subject) => {
+    const points = getKnowledgePointsForSubject(subject.id);
+    if (points.length === 0) return subject;
+    const completed = points.filter((point) => {
+      const status = normalizedState.knowledgeStatus[point.id]?.status;
+      return status === 'learned' || status === 'fuzzy' || status === 'mastered';
+    }).length;
+    return { ...subject, progress: Math.round((completed / points.length) * 100) };
   });
-  return { ...state, subjects };
+  return { ...normalizedState, subjects };
 }
 
-export function completeTask(state, taskId, completedAt) {
+export function completeTask(state, taskId, completedAt, options = {}) {
+  const normalizedState = normalizeState(state);
   let gainedExp = 0;
   let completedSubjectId = null;
+  let completedKnowledgePointId = null;
+  const masteryStatus = options.masteryStatus || 'learned';
 
-  const tasks = state.tasks.map((task) => {
+  const tasks = normalizedState.tasks.map((task) => {
     if (task.id !== taskId || task.status === 'completed') return task;
     gainedExp = task.exp;
     completedSubjectId = task.subjectId;
-    return { ...task, status: 'completed', completedAt };
+    completedKnowledgePointId = task.knowledgePointId || null;
+    return { ...task, status: 'completed', completedAt, masteryStatus };
   });
 
-  const subjects = state.subjects.map((subject) => {
+  const subjects = normalizedState.subjects.map((subject) => {
     if (subject.id !== completedSubjectId) return subject;
     return { ...subject, masteryExp: subject.masteryExp + gainedExp };
   });
 
+  const knowledgeStatus = { ...normalizedState.knowledgeStatus };
+  let reviewQueue = normalizedState.reviewQueue;
+  if (completedKnowledgePointId) {
+    knowledgeStatus[completedKnowledgePointId] = {
+      ...knowledgeStatus[completedKnowledgePointId],
+      status: masteryStatus,
+      updatedAt: completedAt,
+    };
+
+    if (masteryStatus === 'fuzzy') {
+      const exists = reviewQueue.some((item) => item.knowledgePointId === completedKnowledgePointId);
+      if (!exists) {
+        const point = getKnowledgePoint(completedKnowledgePointId);
+        reviewQueue = [
+          ...reviewQueue,
+          {
+            knowledgePointId: completedKnowledgePointId,
+            subjectId: completedSubjectId,
+            title: point?.title || completedKnowledgePointId,
+            addedAt: completedAt,
+            reason: '标记为模糊',
+          },
+        ];
+      }
+    }
+  }
+
   return updateSubjectProgress({
-    ...state,
+    ...normalizedState,
     tasks,
     subjects,
+    knowledgeStatus,
+    reviewQueue,
     character: {
-      ...state.character,
-      totalExp: state.character.totalExp + gainedExp,
+      ...normalizedState.character,
+      totalExp: normalizedState.character.totalExp + gainedExp,
       lastStudyDate: completedAt,
     },
   });
@@ -219,7 +372,7 @@ export function summarizeRisk(state, today) {
 }
 
 export function createDashboard(state, today) {
-  const preparedState = ensureTodayTasks(state, today);
+  const preparedState = updateSubjectProgress(ensureTodayTasks(state, today));
   const totalExp = preparedState.character.totalExp;
 
   return {
@@ -233,6 +386,8 @@ export function createDashboard(state, today) {
     },
     selectedSubjects: preparedState.subjects.filter((subject) => subject.selected),
     todayTasks: preparedState.tasks.filter((task) => task.date === today),
+    knowledgePoints: KNOWLEDGE_POINTS,
+    sprintStartDate: SPRINT_START_DATE,
     risk: summarizeRisk(preparedState, today),
   };
 }

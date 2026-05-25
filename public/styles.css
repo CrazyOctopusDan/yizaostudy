@@ -302,6 +302,35 @@ button {
   color: var(--ink);
 }
 
+.primary-btn:disabled,
+.secondary-btn:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.mastery-actions,
+.knowledge-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.knowledge-meta {
+  margin: 10px 0;
+}
+
+.knowledge-meta span,
+.knowledge-meta a {
+  border: 1px solid #d2a15f;
+  border-radius: 999px;
+  background: #fff8e8;
+  color: var(--muted);
+  padding: 4px 8px;
+  font-size: 12px;
+  text-decoration: none;
+}
+
 .map {
   display: grid;
   grid-template-columns: repeat(5, minmax(90px, 1fr));

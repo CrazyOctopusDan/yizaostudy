@@ -46,6 +46,27 @@ function sendError(response, error) {
   sendJson(response, status, { error: error.message || '服务器内部错误' });
 }
 
+function serializeDashboard(dashboard) {
+  return {
+    state: dashboard.state,
+    profile: dashboard.state.profile,
+    subjects: dashboard.state.subjects,
+    materials: dashboard.state.materials,
+    questions: dashboard.state.questions,
+    examRecords: dashboard.state.examRecords,
+    reviewQueue: dashboard.state.reviewQueue,
+    knowledgeStatus: dashboard.state.knowledgeStatus,
+    knowledgePoints: dashboard.knowledgePoints,
+    stage: dashboard.stage,
+    daysLeft: dashboard.daysLeft,
+    character: dashboard.character,
+    selectedSubjects: dashboard.selectedSubjects,
+    todayTasks: dashboard.todayTasks,
+    sprintStartDate: dashboard.sprintStartDate,
+    risk: dashboard.risk,
+  };
+}
+
 async function serveStatic(request, response) {
   const url = new URL(request.url, 'http://127.0.0.1');
   const requestedPath = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
@@ -78,55 +99,44 @@ export function createServer({ dataFile = DEFAULT_DATA_FILE } = {}) {
       if (url.pathname === '/api/dashboard' && request.method === 'GET') {
         const state = await withState(dataFile, today, (currentState) => ensureTodayTasks(currentState, today));
         const dashboard = createDashboard(state, today);
-        sendJson(response, 200, {
-          profile: dashboard.state.profile,
-          subjects: dashboard.state.subjects,
-          materials: dashboard.state.materials,
-          questions: dashboard.state.questions,
-          examRecords: dashboard.state.examRecords,
-          stage: dashboard.stage,
-          daysLeft: dashboard.daysLeft,
-          character: dashboard.character,
-          selectedSubjects: dashboard.selectedSubjects,
-          todayTasks: dashboard.todayTasks,
-          risk: dashboard.risk,
-        });
+        sendJson(response, 200, serializeDashboard(dashboard));
         return;
       }
 
       if (url.pathname === '/api/subjects' && request.method === 'PUT') {
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => updateSubjectSelection(currentState, body.selectedSubjectIds || []));
-        sendJson(response, 200, createDashboard(state, today));
+        sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
         return;
       }
 
       const taskMatch = url.pathname.match(/^\/api\/tasks\/([^/]+)\/complete$/);
       if (taskMatch && request.method === 'POST') {
         const taskId = decodeURIComponent(taskMatch[1]);
-        const state = await withState(dataFile, today, (currentState) => completeTask(currentState, taskId, today));
-        sendJson(response, 200, createDashboard(state, today));
+        const body = await readRequestBody(request);
+        const state = await withState(dataFile, today, (currentState) => completeTask(currentState, taskId, today, body));
+        sendJson(response, 200, serializeDashboard(createDashboard(state, today)));
         return;
       }
 
       if (url.pathname === '/api/materials' && request.method === 'POST') {
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => addMaterial(currentState, body));
-        sendJson(response, 201, createDashboard(state, today));
+        sendJson(response, 201, serializeDashboard(createDashboard(state, today)));
         return;
       }
 
       if (url.pathname === '/api/questions' && request.method === 'POST') {
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => addQuestion(currentState, body));
-        sendJson(response, 201, createDashboard(state, today));
+        sendJson(response, 201, serializeDashboard(createDashboard(state, today)));
         return;
       }
 
       if (url.pathname === '/api/exam-records' && request.method === 'POST') {
         const body = await readRequestBody(request);
         const state = await withState(dataFile, today, (currentState) => addExamRecord(currentState, { ...body, date: body.date || today }));
-        sendJson(response, 201, createDashboard(state, today));
+        sendJson(response, 201, serializeDashboard(createDashboard(state, today)));
         return;
       }
 

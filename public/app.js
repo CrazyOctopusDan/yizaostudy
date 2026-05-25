@@ -15,6 +15,12 @@ const priorityOrder = {
   optional: 2,
 };
 
+const masteryLabel = {
+  learned: '已学',
+  fuzzy: '模糊',
+  mastered: '掌握',
+};
+
 const views = [...document.querySelectorAll('.view')];
 const navItems = [...document.querySelectorAll('.nav-item')];
 
@@ -122,10 +128,31 @@ function renderToday() {
       render();
     });
   });
+
+  document.querySelectorAll('[data-mastery-task]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      state.dashboard = await api(`/api/tasks/${encodeURIComponent(button.dataset.masteryTask)}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ masteryStatus: button.dataset.masteryStatus }),
+      });
+      render();
+    });
+  });
 }
 
 function renderTask(task) {
   const done = task.status === 'completed';
+  const point = task.knowledgePointId ? state.dashboard.knowledgePoints.find((item) => item.id === task.knowledgePointId) : null;
+  const sourceLink = task.sourceUrl ? `<a href="${task.sourceUrl}" target="_blank" rel="noreferrer">大纲来源</a>` : '';
+  const actionHtml = task.sourceType === 'knowledge'
+    ? `
+      <div class="mastery-actions">
+        ${Object.entries(masteryLabel).map(([status, label]) => `
+          <button class="secondary-btn" data-mastery-task="${task.id}" data-mastery-status="${status}" ${done ? 'disabled' : ''}>${done && task.masteryStatus === status ? `已标记：${label}` : label}</button>
+        `).join('')}
+      </div>
+    `
+    : `<button class="primary-btn" data-complete-task="${task.id}" ${done ? 'disabled' : ''}>${done ? '已完成' : '完成'}</button>`;
   return `
     <article class="task ${done ? 'completed' : ''}">
       <div class="task-top">
@@ -136,9 +163,18 @@ function renderTask(task) {
         <strong>+${task.exp} EXP</strong>
       </div>
       <p>${task.description}</p>
+      ${point ? `
+        <div class="knowledge-meta">
+          <span>${point.chapter}</span>
+          <span>${point.title}</span>
+          <span>${point.estimatedMinutes} 分钟</span>
+          <span>${point.importance}</span>
+          ${sourceLink}
+        </div>
+      ` : ''}
       <div class="task-top">
         <span class="muted">${subjectName(task.subjectId)}</span>
-        <button class="primary-btn" data-complete-task="${task.id}" ${done ? 'disabled' : ''}>${done ? '已完成' : '完成'}</button>
+        ${actionHtml}
       </div>
     </article>
   `;
@@ -160,6 +196,26 @@ function renderPlan() {
               <span class="muted">${subject.name}</span>
             </label>
           `).join('')}
+        </div>
+      </section>
+      <section class="panel">
+        <h3>知识点进度</h3>
+        <p class="muted">系统会在 ${state.dashboard.sprintStartDate} 前完成已勾选科目的第一轮知识点学习，最后一个月保留给冲刺刷题。</p>
+        <div class="list">
+          ${state.dashboard.selectedSubjects.map((subject) => {
+            const points = state.dashboard.knowledgePoints.filter((point) => point.subjectId === subject.id);
+            const learned = points.filter((point) => {
+              const status = state.dashboard.knowledgeStatus[point.id]?.status;
+              return ['learned', 'fuzzy', 'mastered'].includes(status);
+            }).length;
+            const nextPoint = points.find((point) => state.dashboard.knowledgeStatus[point.id]?.status === 'not-started');
+            return `
+              <div class="list-item">
+                <div class="subject-row"><strong>${subject.shortName}</strong><span>${learned}/${points.length}</span></div>
+                <p class="muted">下一知识点：${nextPoint ? `${nextPoint.chapter} / ${nextPoint.title}` : '第一轮已学完，进入复盘。'}</p>
+              </div>
+            `;
+          }).join('') || emptyHtml()}
         </div>
       </section>
       <section class="panel">
@@ -264,6 +320,16 @@ function renderReview() {
           <div class="list-item"><span class="muted">任务完成</span><h3>${completed}/${total}</h3></div>
           <div class="list-item"><span class="muted">角色等级</span><h3>Lv.${state.dashboard.character.level}</h3></div>
           <div class="list-item"><span class="muted">当前风险</span><h3>${state.dashboard.risk.level}</h3></div>
+        </div>
+        <h3>模糊知识点</h3>
+        <div class="list">
+          ${state.dashboard.reviewQueue.map((item) => `
+            <div class="list-item">
+              <strong>${subjectName(item.subjectId)}</strong>
+              <p>${item.title}</p>
+              <p class="muted">${item.reason}</p>
+            </div>
+          `).join('') || emptyHtml()}
         </div>
       </section>
       <section class="panel">
