@@ -1,7 +1,7 @@
 import { createServer as createHttpServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { extname, join, resolve } from 'node:path';
+import { extname, join, resolve, win32 } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
@@ -20,7 +20,21 @@ import { loadState, saveState, todayIso } from './src/storage/jsonStore.js';
 const DEFAULT_PORT = Number(process.env.PORT) || 4173;
 const ROOT_DIR = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const PUBLIC_DIR = join(ROOT_DIR, 'public');
-const DEFAULT_DATA_FILE = join(ROOT_DIR, 'data', 'app-data.json');
+
+export function resolveDefaultDataFile({ platform = process.platform, env = process.env, rootDir = ROOT_DIR } = {}) {
+  if (env.YIZAO_DATA_DIR) {
+    const pathJoin = platform === 'win32' ? win32.join : join;
+    return pathJoin(env.YIZAO_DATA_DIR, 'app-data.json');
+  }
+
+  if (platform === 'win32' && env.LOCALAPPDATA) {
+    return win32.join(env.LOCALAPPDATA, 'YizaoStudy', 'app-data.json');
+  }
+
+  return join(rootDir, 'data', 'app-data.json');
+}
+
+const DEFAULT_DATA_FILE = resolveDefaultDataFile();
 
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',

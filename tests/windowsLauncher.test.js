@@ -12,6 +12,17 @@ test('Windows launchers keep the command window open and write startup logs', as
   }
 });
 
+test('Windows launchers store logs and study data under LOCALAPPDATA', async () => {
+  for (const fileName of ['start-yizaostudy.cmd', '启动学习计划.bat']) {
+    const content = await readFile(new URL(`../${fileName}`, import.meta.url), 'utf8');
+
+    assert.match(content, /LOCALAPPDATA/);
+    assert.match(content, /YIZAO_DATA_DIR/);
+    assert.match(content, /YizaoStudy/);
+    assert.match(content, /set "LOG_FILE=%YIZAO_DATA_DIR%\\startup\.log"/);
+  }
+});
+
 test('Windows launchers detect read-only or protected folders before starting Node', async () => {
   for (const fileName of ['start-yizaostudy.cmd', '启动学习计划.bat']) {
     const content = await readFile(new URL(`../${fileName}`, import.meta.url), 'utf8');
@@ -22,7 +33,7 @@ test('Windows launchers detect read-only or protected folders before starting No
     assert.ok(writeCheckIndex > -1, `${fileName} should check whether the folder is writable`);
     assert.ok(writeCheckIndex < logFileIndex, `${fileName} should check write access before creating startup.log`);
     assert.ok(writeCheckIndex < nodeStartIndex, `${fileName} should check write access before starting Node`);
-    assert.match(content, /move the whole yizaostudy folder to Desktop or Documents/);
+    assert.match(content, /The Windows user data folder is not writable/);
   }
 });
 

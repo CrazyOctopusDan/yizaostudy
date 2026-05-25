@@ -3,23 +3,33 @@ setlocal EnableExtensions
 title Yizao Study Planner
 cd /d "%~dp0"
 
-set "WRITE_CHECK_FILE=%~dp0.__write_check.tmp"
+if "%LOCALAPPDATA%"=="" (
+  set "YIZAO_DATA_DIR=%TEMP%\YizaoStudy"
+) else (
+  set "YIZAO_DATA_DIR=%LOCALAPPDATA%\YizaoStudy"
+)
+
+if not exist "%YIZAO_DATA_DIR%" mkdir "%YIZAO_DATA_DIR%" >nul 2>nul
+
+set "WRITE_CHECK_FILE=%YIZAO_DATA_DIR%\.__write_check.tmp"
 copy /y NUL "%WRITE_CHECK_FILE%" >nul 2>nul
 if errorlevel 1 (
-  echo This folder is not writable, so the planner cannot save startup logs or study progress.
-  echo Please move the whole yizaostudy folder to Desktop or Documents, then run start-yizaostudy.cmd again.
-  echo Do not run this file directly inside the zip archive or from a protected system folder.
+  echo The Windows user data folder is not writable:
+  echo %YIZAO_DATA_DIR%
+  echo The planner cannot save startup logs or study progress.
+  echo Please move the whole yizaostudy folder to Desktop or Documents, or ask Windows Security to allow this app.
   echo.
   pause
   exit /b 1
 )
 del "%WRITE_CHECK_FILE%" >nul 2>nul
 
-set "LOG_FILE=%~dp0startup.log"
+set "LOG_FILE=%YIZAO_DATA_DIR%\startup.log"
 echo [%date% %time%] Starting yizaostudy > "%LOG_FILE%"
 
 echo Yizao Study Planner
 echo Current folder: %CD%
+echo Data folder: %YIZAO_DATA_DIR%
 echo Log file: %LOG_FILE%
 echo.
 

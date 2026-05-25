@@ -2,8 +2,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createServer } from '../server.js';
+import { join, win32 } from 'node:path';
+import { createServer, resolveDefaultDataFile } from '../server.js';
+
+test('resolveDefaultDataFile uses LOCALAPPDATA on Windows', () => {
+  const dataFile = resolveDefaultDataFile({
+    platform: 'win32',
+    env: { LOCALAPPDATA: 'C:\\Users\\wife\\AppData\\Local' },
+    rootDir: 'C:\\Protected\\yizaostudy',
+  });
+
+  assert.equal(dataFile, win32.join('C:\\Users\\wife\\AppData\\Local', 'YizaoStudy', 'app-data.json'));
+});
+
+test('resolveDefaultDataFile honors explicit YIZAO_DATA_DIR', () => {
+  const dataFile = resolveDefaultDataFile({
+    platform: 'win32',
+    env: { YIZAO_DATA_DIR: 'D:\\StudyData' },
+    rootDir: 'C:\\Protected\\yizaostudy',
+  });
+
+  assert.equal(dataFile, win32.join('D:\\StudyData', 'app-data.json'));
+});
 
 test('GET /api/dashboard creates local state and returns today tasks', async () => {
   const dataDir = await mkdtemp(join(tmpdir(), 'yizaostudy-'));
