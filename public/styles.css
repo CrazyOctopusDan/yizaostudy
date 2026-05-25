@@ -190,6 +190,7 @@ button {
 
 .grid.two {
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  align-items: start;
 }
 
 .grid.three {
