@@ -5,13 +5,13 @@
 ## Windows 使用
 
 1. 安装 Node.js LTS: <https://nodejs.org/>
-2. 解压项目压缩包。
+2. 解压项目压缩包，建议放到桌面或文档目录，例如 `C:\Users\你的用户名\Desktop\yizaostudy`。不要直接在压缩包里运行，也不要放到 `C:\Program Files` 等系统保护目录。
 3. 双击 `start-yizaostudy.cmd`。如果想用中文入口，也可以双击 `启动学习计划.bat`。
 4. 浏览器会打开 `http://127.0.0.1:4173`。
 
 学习数据保存在解压目录的 `data/app-data.json`。备份时复制整个项目目录，或至少复制 `data/app-data.json`。
 
-如果启动窗口闪退或没有打开网页，先重新双击 `start-yizaostudy.cmd`。新版启动脚本会把错误留在窗口中，并在同目录生成 `startup.log`，常见原因是没有安装 Node.js、Node.js 版本低于 20，或 4173 端口已被其他程序占用。
+如果启动窗口提示 `拒绝访问` 或 `Access is denied`，通常是当前目录不可写。把整个 `yizaostudy` 文件夹移动到桌面或文档目录后，再双击 `start-yizaostudy.cmd`。新版启动脚本会把错误留在窗口中，并在同目录生成 `startup.log`，常见原因是没有安装 Node.js、Node.js 版本低于 20、目录不可写，或 4173 端口已被其他程序占用。
 
 ## 学习计划规则
 

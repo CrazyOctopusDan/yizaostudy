@@ -3,6 +3,18 @@ setlocal EnableExtensions
 title Yizao Study Planner
 cd /d "%~dp0"
 
+set "WRITE_CHECK_FILE=%~dp0.__write_check.tmp"
+copy /y NUL "%WRITE_CHECK_FILE%" >nul 2>nul
+if errorlevel 1 (
+  echo This folder is not writable, so the planner cannot save startup logs or study progress.
+  echo Please move the whole yizaostudy folder to Desktop or Documents, then run start-yizaostudy.cmd again.
+  echo Do not run this file directly inside the zip archive or from a protected system folder.
+  echo.
+  pause
+  exit /b 1
+)
+del "%WRITE_CHECK_FILE%" >nul 2>nul
+
 set "LOG_FILE=%~dp0startup.log"
 echo [%date% %time%] Starting yizaostudy > "%LOG_FILE%"
 
