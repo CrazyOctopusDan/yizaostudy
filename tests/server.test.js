@@ -41,6 +41,7 @@ test('GET /api/dashboard creates local state and returns today tasks', async () 
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/dashboard?today=2026-05-25`);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     const body = await response.json();
     assert.equal(body.profile.city, '嘉兴市');
     assert.ok(body.todayTasks.length > 0);
@@ -93,6 +94,7 @@ test('GET / serves the RPG study planner shell', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/`);
     const html = await response.text();
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.match(html, /造价勇者/);
   } finally {
     await new Promise((resolve) => server.close(resolve));

@@ -53,7 +53,10 @@ async function readRequestBody(request) {
 }
 
 function sendJson(response, status, payload) {
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+  response.writeHead(status, {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8',
+  });
   response.end(JSON.stringify(payload));
 }
 
@@ -94,13 +97,19 @@ async function serveStatic(request, response) {
   const filePath = resolve(PUBLIC_DIR, `.${requestedPath}`);
 
   if (!filePath.startsWith(PUBLIC_DIR) || !existsSync(filePath)) {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.writeHead(404, {
+      'cache-control': 'no-store',
+      'content-type': 'text/plain; charset=utf-8',
+    });
     response.end('Not found');
     return;
   }
 
   const content = await readFile(filePath);
-  response.writeHead(200, { 'content-type': CONTENT_TYPES[extname(filePath)] || 'application/octet-stream' });
+  response.writeHead(200, {
+    'cache-control': 'no-store',
+    'content-type': CONTENT_TYPES[extname(filePath)] || 'application/octet-stream',
+  });
   response.end(content);
 }
 
