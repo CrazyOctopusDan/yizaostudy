@@ -199,7 +199,20 @@ function openBrowser(url) {
   child.unref();
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isMainModule(importMetaUrl, argvPath = process.argv[1]) {
+  if (!argvPath) return false;
+  if (/^[A-Za-z]:[\\/]/.test(argvPath)) {
+    const importPath = decodeURIComponent(new URL(importMetaUrl).pathname)
+      .replace(/^\/([A-Za-z]:\/)/, '$1')
+      .replace(/\//g, '\\')
+      .toLowerCase();
+    return importPath === argvPath.replace(/\//g, '\\').toLowerCase();
+  }
+
+  return resolve(fileURLToPath(importMetaUrl)) === resolve(argvPath);
+}
+
+if (isMainModule(import.meta.url)) {
   const noOpen = process.argv.includes('--no-open');
   const server = createServer();
   server.listen(DEFAULT_PORT, '127.0.0.1', () => {

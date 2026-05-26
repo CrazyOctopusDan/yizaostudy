@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, win32 } from 'node:path';
-import { createServer, resolveDefaultDataFile } from '../server.js';
+import { createServer, isMainModule, resolveDefaultDataFile } from '../server.js';
 
 test('resolveDefaultDataFile uses LOCALAPPDATA on Windows', () => {
   const dataFile = resolveDefaultDataFile({
@@ -23,6 +23,11 @@ test('resolveDefaultDataFile honors explicit YIZAO_DATA_DIR', () => {
   });
 
   assert.equal(dataFile, win32.join('D:\\StudyData', 'app-data.json'));
+});
+
+test('isMainModule recognizes Windows entry paths', () => {
+  assert.equal(isMainModule('file:///C:/Users/wife/Desktop/yizaostudy/server.js', 'C:\\Users\\wife\\Desktop\\yizaostudy\\server.js'), true);
+  assert.equal(isMainModule('file:///C:/Users/wife/Desktop/yizaostudy/server.js', 'C:\\Users\\wife\\Desktop\\other\\server.js'), false);
 });
 
 test('GET /api/dashboard creates local state and returns today tasks', async () => {
